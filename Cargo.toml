@@ -1,0 +1,38 @@
+[package]
+name = "newrelic_opentelemetry"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+opentelemetry = { version = "0.21.0", features = ["metrics", "logs"] }
+opentelemetry-http = "0.10.0"
+opentelemetry-otlp = { version = "0.14.0", features = [
+    "tonic",
+    "metrics",
+    "logs",
+    "http-proto",
+    "reqwest-client",
+    "reqwest-rustls",
+] }
+opentelemetry-semantic-conventions = "0.13.0"
+opentelemetry-stdout = { version = "0.2.0", features = ["logs"] }
+opentelemetry_sdk = { version = "0.21.2", features = [
+    "rt-tokio",
+    "logs",
+    "metrics",
+] }
+tracing = "0.1.40"
+tracing-opentelemetry = { version = "0.22.0", features = [] }
+tracing-subscriber = { version = "0.3.18", features = [
+    "alloc",
+    "json",
+    "fmt",
+    "env-filter",
+    "std",
+    "time",
+] }
+time = { version = "0.3.31", features = ["macros"] }
+opentelemetry-appender-tracing = "0.2.0"
+tracing-opentelemetry-fmt = { git = "https://github.com/Romira915/tracing-opentelemetry-fmt.git" }
