@@ -68,9 +68,10 @@ impl NewRelicSubscriberInitializer {
             &newrelic_license_key,
             &newrelic_service_name,
         );
+        let logger_provider = opentelemetry::global::logger_provider();
         let otel_logs_layer =
             opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge::new(
-                &opentelemetry::global::logger_provider(),
+                &logger_provider,
             );
 
         tracing_subscriber::registry()
