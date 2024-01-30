@@ -7,37 +7,37 @@ mod initialize;
 
 #[derive(Default)]
 pub struct NewRelicSubscriberInitializer {
-    new_relic_otlp_endpoint: Option<String>,
-    new_relic_license_key: Option<String>,
-    new_relic_service_name: Option<String>,
+    newrelic_otlp_endpoint: Option<String>,
+    newrelic_license_key: Option<String>,
+    newrelic_service_name: Option<String>,
 }
 
 impl NewRelicSubscriberInitializer {
-    pub fn new_relic_otlp_endpoint(mut self, new_relic_otlp_endpoint: &str) -> Self {
-        self.new_relic_otlp_endpoint = Some(new_relic_otlp_endpoint.to_string());
+    pub fn newrelic_otlp_endpoint(mut self, newrelic_otlp_endpoint: &str) -> Self {
+        self.newrelic_otlp_endpoint = Some(newrelic_otlp_endpoint.to_string());
         self
     }
 
-    pub fn new_relic_license_key(mut self, new_relic_license_key: &str) -> Self {
-        self.new_relic_license_key = Some(new_relic_license_key.to_string());
+    pub fn newrelic_license_key(mut self, newrelic_license_key: &str) -> Self {
+        self.newrelic_license_key = Some(newrelic_license_key.to_string());
         self
     }
 
-    pub fn new_relic_service_name(mut self, new_relic_service_name: &str) -> Self {
-        self.new_relic_service_name = Some(new_relic_service_name.to_string());
+    pub fn newrelic_service_name(mut self, newrelic_service_name: &str) -> Self {
+        self.newrelic_service_name = Some(newrelic_service_name.to_string());
         self
     }
 
     pub fn init(self) {
-        let new_relic_otlp_endpoint = self.new_relic_otlp_endpoint.unwrap_or_default();
-        let new_relic_license_key = self.new_relic_license_key.unwrap_or_default();
-        let new_relic_service_name = self.new_relic_service_name.unwrap_or_default();
+        let newrelic_otlp_endpoint = self.newrelic_otlp_endpoint.unwrap_or_default();
+        let newrelic_license_key = self.newrelic_license_key.unwrap_or_default();
+        let newrelic_service_name = self.newrelic_service_name.unwrap_or_default();
         init_propagator();
 
         let tracer = init_tracing(
-            &new_relic_otlp_endpoint,
-            &new_relic_license_key,
-            &new_relic_service_name,
+            &newrelic_otlp_endpoint,
+            &newrelic_license_key,
+            &newrelic_service_name,
         );
 
         let fmt_layer = tracing_subscriber::fmt::layer()
@@ -59,14 +59,14 @@ impl NewRelicSubscriberInitializer {
             .with_location(true)
             .with_tracer(tracer);
         let otel_metrics_layer = tracing_opentelemetry::MetricsLayer::new(build_metrics_provider(
-            &new_relic_otlp_endpoint,
-            &new_relic_license_key,
-            &new_relic_service_name,
+            &newrelic_otlp_endpoint,
+            &newrelic_license_key,
+            &newrelic_service_name,
         ));
         init_logging(
-            &new_relic_otlp_endpoint,
-            &new_relic_license_key,
-            &new_relic_service_name,
+            &newrelic_otlp_endpoint,
+            &newrelic_license_key,
+            &newrelic_service_name,
         );
         let otel_logs_layer =
             opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge::new(
