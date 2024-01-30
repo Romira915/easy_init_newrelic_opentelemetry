@@ -5,6 +5,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 mod initialize;
 
+#[derive(Default)]
 pub struct NewRelicSubscriberInitializer {
     new_relic_otlp_endpoint: Option<String>,
     new_relic_license_key: Option<String>,
