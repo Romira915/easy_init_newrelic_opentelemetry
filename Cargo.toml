@@ -34,5 +34,4 @@ tracing-subscriber = { version = "0.3.18", features = [
     "time",
 ] }
 time = { version = "0.3.31", features = ["macros"] }
-opentelemetry-appender-tracing = "0.2.0"
-tracing-opentelemetry-fmt = { git = "https://github.com/Romira915/tracing-opentelemetry-fmt.git" }
+opentelemetry-appender-tracing = { git = "https://github.com/Romira915/opentelemetry-rust", branch = "patch/newrelic-attr" }
