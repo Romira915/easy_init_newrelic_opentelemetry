@@ -98,7 +98,7 @@ impl NewRelicSubscriberInitializer {
         );
         let logger_provider = opentelemetry::global::logger_provider();
         let otel_logs_layer =
-            opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge::new(
+            opentelemetry_appender_tracing2::layer::OpenTelemetryTracingBridge::new(
                 &logger_provider,
             );
 
