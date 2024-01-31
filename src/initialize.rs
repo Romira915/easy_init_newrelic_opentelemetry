@@ -124,3 +124,44 @@ pub(crate) fn init_tracing(
         .install_batch(opentelemetry_sdk::runtime::Tokio)
         .expect("Failed to create tracer.")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const NEWRELIC_OTLP_ENDPOINT: &str = "http://localhost:4317";
+    const NEWRELIC_LICENSE_KEY: &str = "1234567890abcdef1234567890abcdef12345678";
+    const NEWRELIC_SERVICE_NAME: &str = "test-service";
+
+    #[tokio::test]
+    async fn test_init_propagator() {
+        init_propagator();
+    }
+
+    #[tokio::test]
+    async fn test_init_logging() {
+        init_logging(
+            NEWRELIC_OTLP_ENDPOINT,
+            NEWRELIC_LICENSE_KEY,
+            NEWRELIC_SERVICE_NAME,
+        );
+    }
+
+    #[tokio::test]
+    async fn test_build_metrics_provider() {
+        build_metrics_provider(
+            NEWRELIC_OTLP_ENDPOINT,
+            NEWRELIC_LICENSE_KEY,
+            NEWRELIC_SERVICE_NAME,
+        );
+    }
+
+    #[tokio::test]
+    async fn test_init_tracing() {
+        init_tracing(
+            NEWRELIC_OTLP_ENDPOINT,
+            NEWRELIC_LICENSE_KEY,
+            NEWRELIC_SERVICE_NAME,
+        );
+    }
+}

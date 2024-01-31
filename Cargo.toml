@@ -1,7 +1,16 @@
 [package]
-name = "newrelic_opentelemetry"
+name = "easy_init_newrelic_opentelemetry"
 version = "0.1.0"
+authors = ["Romira915 <me@romira.dev>"]
+description = "A simple example of how to initialize a newrelic opentelemetry exporter"
+homepage = "https://github.com/Romira915/easy_init_newrelic_opentelemetry"
+repository = "https://github.com/Romira915/easy_init_newrelic_opentelemetry"
+rust-version = "1.75.0"
+categories = ["development-tools", "web-programming", "network-programming"]
+keywords = ["tracing", "metrics", "logging", "opentelemetry", "newrelic"]
+readme = "README.md"
 edition = "2021"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -33,5 +42,8 @@ tracing-subscriber = { version = "0.3.18", features = [
     "std",
     "time",
 ] }
-time = { version = "0.3.31", features = ["macros"] }
-opentelemetry-appender-tracing = { git = "https://github.com/Romira915/opentelemetry-rust", branch = "patch/newrelic-attr" }
+time = { version = "0.3.31", features = ["macros", "formatting"] }
+opentelemetry-appender-tracing2 = "0.2.0"
+
+[dev-dependencies]
+tokio = { version = "1.35.1", features = [] }
