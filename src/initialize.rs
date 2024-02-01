@@ -49,6 +49,7 @@ pub(crate) fn init_logging(
     new_relic_otlp_endpoint: &str,
     new_relic_license_key: &str,
     new_relic_service_name: &str,
+    host_name: &str,
 ) -> Logger {
     opentelemetry_otlp::new_pipeline()
         .logging()
@@ -62,10 +63,16 @@ pub(crate) fn init_logging(
                 )])),
         )
         .with_log_config(
-            opentelemetry_sdk::logs::config().with_resource(Resource::new(vec![KeyValue::new(
-                opentelemetry_semantic_conventions::resource::SERVICE_NAME,
-                new_relic_service_name.to_string(),
-            )])),
+            opentelemetry_sdk::logs::config().with_resource(Resource::new(vec![
+                KeyValue::new(
+                    opentelemetry_semantic_conventions::resource::SERVICE_NAME,
+                    new_relic_service_name.to_string(),
+                ),
+                KeyValue::new(
+                    opentelemetry_semantic_conventions::resource::HOST_NAME,
+                    host_name.to_string(),
+                ),
+            ])),
         )
         .install_batch(opentelemetry_sdk::runtime::Tokio)
         .expect("Failed to create logging controller.")
@@ -75,6 +82,7 @@ pub(crate) fn build_metrics_provider(
     new_relic_otlp_endpoint: &str,
     new_relic_license_key: &str,
     new_relic_service_name: &str,
+    host_name: &str,
 ) -> MeterProvider {
     opentelemetry_otlp::new_pipeline()
         .metrics(opentelemetry_sdk::runtime::Tokio)
@@ -87,10 +95,16 @@ pub(crate) fn build_metrics_provider(
                     new_relic_license_key.into(),
                 )])),
         )
-        .with_resource(Resource::new(vec![KeyValue::new(
-            opentelemetry_semantic_conventions::resource::SERVICE_NAME,
-            new_relic_service_name.to_string(),
-        )]))
+        .with_resource(Resource::new(vec![
+            KeyValue::new(
+                opentelemetry_semantic_conventions::resource::SERVICE_NAME,
+                new_relic_service_name.to_string(),
+            ),
+            KeyValue::new(
+                opentelemetry_semantic_conventions::resource::HOST_NAME,
+                host_name.to_string(),
+            ),
+        ]))
         .with_period(std::time::Duration::from_secs(3))
         .with_timeout(std::time::Duration::from_secs(10))
         .with_aggregation_selector(DefaultAggregationSelector::new())
@@ -103,6 +117,7 @@ pub(crate) fn init_tracing(
     new_relic_otlp_endpoint: &str,
     new_relic_license_key: &str,
     new_relic_service_name: &str,
+    host_name: &str,
 ) -> Tracer {
     opentelemetry_otlp::new_pipeline()
         .tracing()
@@ -115,12 +130,16 @@ pub(crate) fn init_tracing(
                     new_relic_license_key.into(),
                 )])),
         )
-        .with_trace_config(
-            trace::config().with_resource(Resource::new(vec![KeyValue::new(
+        .with_trace_config(trace::config().with_resource(Resource::new(vec![
+            KeyValue::new(
                 opentelemetry_semantic_conventions::resource::SERVICE_NAME,
                 new_relic_service_name.to_string(),
-            )])),
-        )
+            ),
+            KeyValue::new(
+                opentelemetry_semantic_conventions::resource::HOST_NAME,
+                host_name.to_string(),
+            ),
+        ])))
         .install_batch(opentelemetry_sdk::runtime::Tokio)
         .expect("Failed to create tracer.")
 }
@@ -132,6 +151,7 @@ mod tests {
     const NEWRELIC_OTLP_ENDPOINT: &str = "http://localhost:4317";
     const NEWRELIC_LICENSE_KEY: &str = "1234567890abcdef1234567890abcdef12345678";
     const NEWRELIC_SERVICE_NAME: &str = "test-service";
+    const HOST_NAME: &str = "test-host";
 
     #[tokio::test]
     async fn test_init_propagator() {
@@ -144,6 +164,7 @@ mod tests {
             NEWRELIC_OTLP_ENDPOINT,
             NEWRELIC_LICENSE_KEY,
             NEWRELIC_SERVICE_NAME,
+            HOST_NAME,
         );
     }
 
@@ -153,6 +174,7 @@ mod tests {
             NEWRELIC_OTLP_ENDPOINT,
             NEWRELIC_LICENSE_KEY,
             NEWRELIC_SERVICE_NAME,
+            HOST_NAME,
         );
     }
 
@@ -162,6 +184,7 @@ mod tests {
             NEWRELIC_OTLP_ENDPOINT,
             NEWRELIC_LICENSE_KEY,
             NEWRELIC_SERVICE_NAME,
+            HOST_NAME,
         );
     }
 }

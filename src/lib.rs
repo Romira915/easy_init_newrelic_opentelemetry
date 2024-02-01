@@ -9,8 +9,9 @@
 //! NewRelicSubscriberInitializer::default()
 //!             .newrelic_otlp_endpoint("http://localhost:4317")
 //!             .newrelic_license_key("1234567890abcdef1234567890abcdef12345678")
-//!            .newrelic_service_name("test-service")
-//!            .timestamps_offset(offset!(+00:00:00));
+//!             .newrelic_service_name("test-service")
+//!             .host_name("test-host")
+//!             .timestamps_offset(offset!(+00:00:00));
 //! ```
 
 use crate::initialize::{build_metrics_provider, init_logging, init_propagator, init_tracing};
@@ -28,6 +29,7 @@ pub struct NewRelicSubscriberInitializer {
     newrelic_otlp_endpoint: Option<String>,
     newrelic_license_key: Option<String>,
     newrelic_service_name: Option<String>,
+    host_name: Option<String>,
     timestamps_offset: Option<UtcOffset>,
 }
 
@@ -47,6 +49,11 @@ impl NewRelicSubscriberInitializer {
         self
     }
 
+    pub fn host_name(mut self, host_name: &str) -> Self {
+        self.host_name = Some(host_name.to_string());
+        self
+    }
+
     pub fn timestamps_offset(mut self, timestamps_offset: UtcOffset) -> Self {
         self.timestamps_offset = Some(timestamps_offset);
         self
@@ -58,6 +65,7 @@ impl NewRelicSubscriberInitializer {
             .unwrap_or_else(|| NEWRELIC_OTLP_ENDPOINT.to_string());
         let newrelic_license_key = self.newrelic_license_key.unwrap_or_default();
         let newrelic_service_name = self.newrelic_service_name.unwrap_or_default();
+        let host_name = self.host_name.unwrap_or_default();
         let timestamps_offset = self.timestamps_offset.unwrap_or_else(|| offset!(+00:00:00));
 
         init_propagator();
@@ -66,6 +74,7 @@ impl NewRelicSubscriberInitializer {
             &newrelic_otlp_endpoint,
             &newrelic_license_key,
             &newrelic_service_name,
+            &host_name,
         );
 
         let fmt_layer = tracing_subscriber::fmt::layer()
@@ -90,11 +99,13 @@ impl NewRelicSubscriberInitializer {
             &newrelic_otlp_endpoint,
             &newrelic_license_key,
             &newrelic_service_name,
+            &host_name,
         ));
         init_logging(
             &newrelic_otlp_endpoint,
             &newrelic_license_key,
             &newrelic_service_name,
+            &host_name,
         );
         let logger_provider = opentelemetry::global::logger_provider();
         let otel_logs_layer =
