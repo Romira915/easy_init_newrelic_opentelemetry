@@ -134,11 +134,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_init() {
-        NewRelicSubscriberInitializer::default()
+        let result = NewRelicSubscriberInitializer::default()
             .newrelic_otlp_endpoint("http://localhost:4317")
             .newrelic_license_key("1234567890abcdef1234567890abcdef12345678")
             .newrelic_service_name("test-service")
             .timestamps_offset(offset!(+00:00:00))
             .init();
+
+        assert!(result.is_ok());
     }
 }
