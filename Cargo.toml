@@ -48,11 +48,7 @@ tracing-subscriber = { version = "0.3.18", features = [
 ] }
 time = { version = "0.3.31", features = ["macros", "formatting"] }
 opentelemetry-appender-tracing2 = "0.26.0"
-hyper = "1.5.0"
 anyhow = "1.0.90"
 
 [dev-dependencies]
 tokio = { version = "1.40.0", features = [] }
-
-[badges]
-github = { repository = "tanakh/hogehoge", workflow = "Rust" }

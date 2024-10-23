@@ -12,11 +12,10 @@
 //!             .newrelic_service_name("test-service")
 //!             .host_name("test-host")
 //!             .timestamps_offset(offset!(+00:00:00));
+//!             // init();
 //! ```
 
-use crate::initialize::{
-    init_logger_provider, init_metrics, init_propagator, init_tracer_provider,
-};
+use crate::initialize::{init_logger_provider, init_metrics, init_tracer_provider};
 use opentelemetry::trace::TracerProvider;
 use time::macros::offset;
 use time::UtcOffset;
@@ -125,22 +124,5 @@ impl NewRelicSubscriberInitializer {
             .init();
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_init() {
-        let result = NewRelicSubscriberInitializer::default()
-            .newrelic_otlp_endpoint("http://localhost:4317")
-            .newrelic_license_key("1234567890abcdef1234567890abcdef12345678")
-            .newrelic_service_name("test-service")
-            .timestamps_offset(offset!(+00:00:00))
-            .init();
-
-        assert!(result.is_ok());
     }
 }

@@ -1,55 +1,17 @@
-use opentelemetry::metrics::{MeterProvider, MetricsError};
-use opentelemetry::propagation::{TextMapCompositePropagator, TextMapPropagator};
+use opentelemetry::metrics::MetricsError;
 use opentelemetry::trace::TraceError;
 use opentelemetry::KeyValue;
 use opentelemetry_otlp::{HttpExporterBuilder, Protocol, WithExportConfig};
-use opentelemetry_sdk::logs::{Logger, LoggerProvider};
+use opentelemetry_sdk::logs::LoggerProvider;
 use opentelemetry_sdk::metrics::reader::DefaultTemporalitySelector;
-use opentelemetry_sdk::propagation::{BaggagePropagator, TraceContextPropagator};
-use opentelemetry_sdk::trace::{Tracer, TracerProvider};
+use opentelemetry_sdk::trace::TracerProvider;
 use opentelemetry_sdk::{trace, Resource};
 use std::collections::HashMap;
 
-fn propagator_from_string(
-    v: &str,
-) -> Result<Option<Box<dyn TextMapPropagator + Send + Sync>>, TraceError> {
-    match v {
-        "tracecontext" => Ok(Some(Box::new(TraceContextPropagator::new()))),
-        "baggage" => Ok(Some(Box::new(BaggagePropagator::new()))),
-        _ => Ok(None),
-    }
-}
-
-pub(crate) fn init_propagator() {
-    let value_from_env =
-        std::env::var("OTEL_PROPAGATORS").unwrap_or_else(|_| "tracecontext,baggage".to_string());
-    let propagators: Vec<(Box<dyn TextMapPropagator + Send + Sync>, String)> = value_from_env
-        .split(',')
-        .map(|s| {
-            let name = s.trim().to_lowercase();
-            propagator_from_string(&name).map(|o| o.map(|b| (b, name)))
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .expect("Failed to create propagator.")
-        .into_iter()
-        .flatten()
-        .collect();
-    if !propagators.is_empty() {
-        let (propagators_impl, propagators_name): (Vec<_>, Vec<_>) =
-            propagators.into_iter().unzip();
-        tracing::debug!(target: "otel::setup", OTEL_PROPAGATORS = propagators_name.join(","));
-        let composite_propagator = TextMapCompositePropagator::new(propagators_impl);
-        opentelemetry::global::set_text_map_propagator(composite_propagator);
-    }
-}
-
 fn http_exporter() -> HttpExporterBuilder {
-    let exporter = opentelemetry_otlp::new_exporter()
+    opentelemetry_otlp::new_exporter()
         .http()
-        .with_protocol(Protocol::HttpJson);
-    #[cfg(feature = "hyper")]
-    let exporter = exporter.with_http_client(hyper::HyperClient::default());
-    exporter
+        .with_protocol(Protocol::HttpJson)
 }
 
 pub(crate) fn init_logger_provider(
@@ -141,49 +103,4 @@ pub(crate) fn init_metrics(
         // .with_aggregation_selector(DefaultAggregationSelector::new())
         .with_temporality_selector(DefaultTemporalitySelector::new())
         .build()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const NEWRELIC_OTLP_ENDPOINT: &str = "http://localhost:4317";
-    const NEWRELIC_LICENSE_KEY: &str = "1234567890abcdef1234567890abcdef12345678";
-    const NEWRELIC_SERVICE_NAME: &str = "test-service";
-    const HOST_NAME: &str = "test-host";
-
-    #[tokio::test]
-    async fn test_init_propagator() {
-        init_propagator();
-    }
-
-    #[tokio::test]
-    async fn test_init_logging() {
-        init_logging(
-            NEWRELIC_OTLP_ENDPOINT,
-            NEWRELIC_LICENSE_KEY,
-            NEWRELIC_SERVICE_NAME,
-            HOST_NAME,
-        );
-    }
-
-    #[tokio::test]
-    async fn test_build_metrics_provider() {
-        build_metrics_provider(
-            NEWRELIC_OTLP_ENDPOINT,
-            NEWRELIC_LICENSE_KEY,
-            NEWRELIC_SERVICE_NAME,
-            HOST_NAME,
-        );
-    }
-
-    #[tokio::test]
-    async fn test_init_tracing() {
-        init_tracing(
-            NEWRELIC_OTLP_ENDPOINT,
-            NEWRELIC_LICENSE_KEY,
-            NEWRELIC_SERVICE_NAME,
-            HOST_NAME,
-        );
-    }
 }
