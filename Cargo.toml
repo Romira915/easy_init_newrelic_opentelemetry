@@ -1,6 +1,6 @@
 [package]
 name = "easy_init_newrelic_opentelemetry"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Romira915 <me@romira.dev>"]
 description = "A simple example of how to initialize a newrelic opentelemetry exporter"
 homepage = "https://github.com/Romira915/easy_init_newrelic_opentelemetry"
