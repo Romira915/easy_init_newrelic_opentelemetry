@@ -1,14 +1,12 @@
-use opentelemetry::propagation::TextMapPropagator;
+use opentelemetry::metrics::{MeterProvider, MetricsError};
+use opentelemetry::propagation::{TextMapCompositePropagator, TextMapPropagator};
 use opentelemetry::trace::TraceError;
 use opentelemetry::KeyValue;
-use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::logs::Logger;
-use opentelemetry_sdk::metrics::reader::{DefaultAggregationSelector, DefaultTemporalitySelector};
-use opentelemetry_sdk::metrics::MeterProvider;
-use opentelemetry_sdk::propagation::{
-    BaggagePropagator, TextMapCompositePropagator, TraceContextPropagator,
-};
-use opentelemetry_sdk::trace::Tracer;
+use opentelemetry_otlp::{HttpExporterBuilder, Protocol, WithExportConfig};
+use opentelemetry_sdk::logs::{Logger, LoggerProvider};
+use opentelemetry_sdk::metrics::reader::DefaultTemporalitySelector;
+use opentelemetry_sdk::propagation::{BaggagePropagator, TraceContextPropagator};
+use opentelemetry_sdk::trace::{Tracer, TracerProvider};
 use opentelemetry_sdk::{trace, Resource};
 use std::collections::HashMap;
 
@@ -45,51 +43,84 @@ pub(crate) fn init_propagator() {
     }
 }
 
-pub(crate) fn init_logging(
+fn http_exporter() -> HttpExporterBuilder {
+    let exporter = opentelemetry_otlp::new_exporter()
+        .http()
+        .with_protocol(Protocol::HttpJson);
+    #[cfg(feature = "hyper")]
+    let exporter = exporter.with_http_client(hyper::HyperClient::default());
+    exporter
+}
+
+pub(crate) fn init_logger_provider(
     new_relic_otlp_endpoint: &str,
     new_relic_license_key: &str,
     new_relic_service_name: &str,
     host_name: &str,
-) -> Logger {
+) -> Result<LoggerProvider, opentelemetry::logs::LogError> {
     opentelemetry_otlp::new_pipeline()
         .logging()
         .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .http()
-                .with_endpoint(new_relic_otlp_endpoint)
+            http_exporter()
+                .with_endpoint(format!("{}/v1/logs", new_relic_otlp_endpoint))
                 .with_headers(HashMap::from([(
                     "api-key".into(),
                     new_relic_license_key.into(),
                 )])),
         )
-        .with_log_config(
-            opentelemetry_sdk::logs::config().with_resource(Resource::new(vec![
-                KeyValue::new(
-                    opentelemetry_semantic_conventions::resource::SERVICE_NAME,
-                    new_relic_service_name.to_string(),
-                ),
-                KeyValue::new(
-                    opentelemetry_semantic_conventions::resource::HOST_NAME,
-                    host_name.to_string(),
-                ),
-            ])),
-        )
+        .with_resource(Resource::new(vec![
+            KeyValue::new(
+                opentelemetry_semantic_conventions::resource::SERVICE_NAME,
+                new_relic_service_name.to_string(),
+            ),
+            KeyValue::new(
+                opentelemetry_semantic_conventions::resource::HOST_NAME,
+                host_name.to_string(),
+            ),
+        ]))
         .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .expect("Failed to create logging controller.")
 }
 
-pub(crate) fn build_metrics_provider(
+pub(crate) fn init_tracer_provider(
     new_relic_otlp_endpoint: &str,
     new_relic_license_key: &str,
     new_relic_service_name: &str,
     host_name: &str,
-) -> MeterProvider {
+) -> Result<TracerProvider, TraceError> {
+    opentelemetry_otlp::new_pipeline()
+        .tracing()
+        .with_exporter(
+            http_exporter()
+                .with_endpoint(format!("{}/v1/traces", new_relic_otlp_endpoint))
+                .with_headers(HashMap::from([(
+                    "api-key".into(),
+                    new_relic_license_key.into(),
+                )])),
+        )
+        .with_trace_config(trace::Config::default().with_resource(Resource::new(vec![
+            KeyValue::new(
+                opentelemetry_semantic_conventions::resource::SERVICE_NAME,
+                new_relic_service_name.to_string(),
+            ),
+            KeyValue::new(
+                opentelemetry_semantic_conventions::resource::HOST_NAME,
+                host_name.to_string(),
+            ),
+        ])))
+        .install_batch(opentelemetry_sdk::runtime::Tokio)
+}
+
+pub(crate) fn init_metrics(
+    new_relic_otlp_endpoint: &str,
+    new_relic_license_key: &str,
+    new_relic_service_name: &str,
+    host_name: &str,
+) -> Result<opentelemetry_sdk::metrics::SdkMeterProvider, MetricsError> {
     opentelemetry_otlp::new_pipeline()
         .metrics(opentelemetry_sdk::runtime::Tokio)
         .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .http()
-                .with_endpoint(new_relic_otlp_endpoint)
+            http_exporter()
+                .with_endpoint(format!("{}/v1/metrics", new_relic_otlp_endpoint))
                 .with_headers(HashMap::from([(
                     "api-key".into(),
                     new_relic_license_key.into(),
@@ -107,41 +138,9 @@ pub(crate) fn build_metrics_provider(
         ]))
         .with_period(std::time::Duration::from_secs(3))
         .with_timeout(std::time::Duration::from_secs(10))
-        .with_aggregation_selector(DefaultAggregationSelector::new())
+        // .with_aggregation_selector(DefaultAggregationSelector::new())
         .with_temporality_selector(DefaultTemporalitySelector::new())
         .build()
-        .expect("Failed to create metrics provider.")
-}
-
-pub(crate) fn init_tracing(
-    new_relic_otlp_endpoint: &str,
-    new_relic_license_key: &str,
-    new_relic_service_name: &str,
-    host_name: &str,
-) -> Tracer {
-    opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .http()
-                .with_endpoint(new_relic_otlp_endpoint)
-                .with_headers(HashMap::from([(
-                    "api-key".into(),
-                    new_relic_license_key.into(),
-                )])),
-        )
-        .with_trace_config(trace::config().with_resource(Resource::new(vec![
-            KeyValue::new(
-                opentelemetry_semantic_conventions::resource::SERVICE_NAME,
-                new_relic_service_name.to_string(),
-            ),
-            KeyValue::new(
-                opentelemetry_semantic_conventions::resource::HOST_NAME,
-                host_name.to_string(),
-            ),
-        ])))
-        .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .expect("Failed to create tracer.")
 }
 
 #[cfg(test)]

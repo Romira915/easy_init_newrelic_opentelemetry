@@ -14,7 +14,10 @@
 //!             .timestamps_offset(offset!(+00:00:00));
 //! ```
 
-use crate::initialize::{build_metrics_provider, init_logging, init_propagator, init_tracing};
+use crate::initialize::{
+    init_logger_provider, init_metrics, init_propagator, init_tracer_provider,
+};
+use opentelemetry::trace::TracerProvider;
 use time::macros::offset;
 use time::UtcOffset;
 use tracing_subscriber::layer::SubscriberExt;
@@ -22,7 +25,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 mod initialize;
 
-const NEWRELIC_OTLP_ENDPOINT: &str = "https://otlp.nr-data.net:4317";
+const NEWRELIC_OTLP_ENDPOINT: &str = "https://otlp.nr-data.net";
 
 #[derive(Default)]
 pub struct NewRelicSubscriberInitializer {
@@ -59,7 +62,7 @@ impl NewRelicSubscriberInitializer {
         self
     }
 
-    pub fn init(self) {
+    pub fn init(self) -> anyhow::Result<()> {
         let newrelic_otlp_endpoint = self
             .newrelic_otlp_endpoint
             .unwrap_or_else(|| NEWRELIC_OTLP_ENDPOINT.to_string());
@@ -68,14 +71,16 @@ impl NewRelicSubscriberInitializer {
         let host_name = self.host_name.unwrap_or_default();
         let timestamps_offset = self.timestamps_offset.unwrap_or_else(|| offset!(+00:00:00));
 
-        init_propagator();
+        // init_propagator();
 
-        let tracer = init_tracing(
+        let tracer_provider = init_tracer_provider(
             &newrelic_otlp_endpoint,
             &newrelic_license_key,
             &newrelic_service_name,
             &host_name,
-        );
+        )?;
+        opentelemetry::global::set_tracer_provider(tracer_provider.clone());
+        let tracer = tracer_provider.tracer(newrelic_service_name.clone());
 
         let fmt_layer = tracing_subscriber::fmt::layer()
             .with_ansi(true)
@@ -88,26 +93,24 @@ impl NewRelicSubscriberInitializer {
             ));
         let env_filter =
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
-        let otel_trace_layer = tracing_opentelemetry::layer()
+        let otel_trace_layer = tracing_opentelemetry::OpenTelemetryLayer::new(tracer)
             .with_error_records_to_exceptions(true)
             .with_error_fields_to_exceptions(true)
             .with_error_events_to_status(true)
             .with_error_events_to_exceptions(true)
-            .with_location(true)
-            .with_tracer(tracer);
-        let otel_metrics_layer = tracing_opentelemetry::MetricsLayer::new(build_metrics_provider(
+            .with_location(true);
+        let otel_metrics_layer = tracing_opentelemetry::MetricsLayer::new(init_metrics(
             &newrelic_otlp_endpoint,
             &newrelic_license_key,
             &newrelic_service_name,
             &host_name,
-        ));
-        init_logging(
+        )?);
+        let logger_provider = init_logger_provider(
             &newrelic_otlp_endpoint,
             &newrelic_license_key,
             &newrelic_service_name,
             &host_name,
-        );
-        let logger_provider = opentelemetry::global::logger_provider();
+        )?;
         let otel_logs_layer =
             opentelemetry_appender_tracing2::layer::OpenTelemetryTracingBridge::new(
                 &logger_provider,
@@ -120,6 +123,8 @@ impl NewRelicSubscriberInitializer {
             .with(otel_metrics_layer)
             .with(otel_logs_layer)
             .init();
+
+        Ok(())
     }
 }
 
