@@ -1,13 +1,12 @@
 use opentelemetry::trace::TraceError;
 use opentelemetry::KeyValue;
 use opentelemetry_otlp::{
-    HttpExporterBuilder, LogExporter, MetricExporter, Protocol, SpanExporter, WithExportConfig,
-    WithHttpConfig,
+    LogExporter, MetricExporter, Protocol, SpanExporter, WithExportConfig, WithHttpConfig,
 };
 use opentelemetry_sdk::logs::LoggerProvider;
 use opentelemetry_sdk::metrics::MetricError;
 use opentelemetry_sdk::trace::TracerProvider;
-use opentelemetry_sdk::{runtime, trace, Resource};
+use opentelemetry_sdk::{runtime, Resource};
 use std::collections::HashMap;
 
 fn resource(new_relic_service_name: &str, host_name: &str) -> Resource {
@@ -43,27 +42,6 @@ pub(crate) fn init_logger_provider(
         .with_resource(resource(new_relic_service_name, host_name))
         .with_batch_exporter(exporter, runtime::Tokio)
         .build())
-    // opentelemetry_otlp::new_pipeline()
-    //     .logging()
-    //     .with_exporter(
-    //         http_exporter()
-    //             .with_endpoint(format!("{}/v1/logs", new_relic_otlp_endpoint))
-    //             .with_headers(HashMap::from([(
-    //                 "api-key".into(),
-    //                 new_relic_license_key.into(),
-    //             )])),
-    //     )
-    //     .with_resource(Resource::new(vec![
-    //         KeyValue::new(
-    //             opentelemetry_semantic_conventions::resource::SERVICE_NAME,
-    //             new_relic_service_name.to_string(),
-    //         ),
-    //         KeyValue::new(
-    //             opentelemetry_semantic_conventions::resource::HOST_NAME,
-    //             host_name.to_string(),
-    //         ),
-    //     ]))
-    //     .install_batch(opentelemetry_sdk::runtime::Tokio)
 }
 
 pub(crate) fn init_tracer_provider(
@@ -86,28 +64,6 @@ pub(crate) fn init_tracer_provider(
         .with_resource(resource(new_relic_service_name, host_name))
         .with_batch_exporter(exporter, runtime::Tokio)
         .build())
-
-    // opentelemetry_otlp::new_pipeline()
-    //     .tracing()
-    //     .with_exporter(
-    //         http_exporter()
-    //             .with_endpoint(format!("{}/v1/traces", new_relic_otlp_endpoint))
-    //             .with_headers(HashMap::from([(
-    //                 "api-key".into(),
-    //                 new_relic_license_key.into(),
-    //             )])),
-    //     )
-    //     .with_trace_config(trace::Config::default().with_resource(Resource::new(vec![
-    //         KeyValue::new(
-    //             opentelemetry_semantic_conventions::resource::SERVICE_NAME,
-    //             new_relic_service_name.to_string(),
-    //         ),
-    //         KeyValue::new(
-    //             opentelemetry_semantic_conventions::resource::HOST_NAME,
-    //             host_name.to_string(),
-    //         ),
-    //     ])))
-    //     .install_batch(opentelemetry_sdk::runtime::Tokio)
 }
 
 pub(crate) fn init_metrics(
@@ -133,30 +89,4 @@ pub(crate) fn init_metrics(
         .with_reader(reader)
         .with_resource(resource(new_relic_service_name, host_name))
         .build())
-
-    // opentelemetry_otlp::new_pipeline()
-    //     .metrics(opentelemetry_sdk::runtime::Tokio)
-    //     .with_exporter(
-    //         http_exporter()
-    //             .with_endpoint(format!("{}/v1/metrics", new_relic_otlp_endpoint))
-    //             .with_headers(HashMap::from([(
-    //                 "api-key".into(),
-    //                 new_relic_license_key.into(),
-    //             )])),
-    //     )
-    //     .with_resource(Resource::new(vec![
-    //         KeyValue::new(
-    //             opentelemetry_semantic_conventions::resource::SERVICE_NAME,
-    //             new_relic_service_name.to_string(),
-    //         ),
-    //         KeyValue::new(
-    //             opentelemetry_semantic_conventions::resource::HOST_NAME,
-    //             host_name.to_string(),
-    //         ),
-    //     ]))
-    //     .with_period(std::time::Duration::from_secs(3))
-    //     .with_timeout(std::time::Duration::from_secs(10))
-    //     // .with_aggregation_selector(DefaultAggregationSelector::new())
-    //     .with_temporality_selector(DefaultTemporalitySelector::new())
-    //     .build()
 }
