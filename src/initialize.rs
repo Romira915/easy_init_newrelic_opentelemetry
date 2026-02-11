@@ -1,25 +1,25 @@
-use opentelemetry::trace::TraceError;
 use opentelemetry::KeyValue;
 use opentelemetry_otlp::{
     LogExporter, MetricExporter, Protocol, SpanExporter, WithExportConfig, WithHttpConfig,
 };
-use opentelemetry_sdk::logs::LoggerProvider;
-use opentelemetry_sdk::metrics::MetricError;
-use opentelemetry_sdk::trace::TracerProvider;
-use opentelemetry_sdk::{runtime, Resource};
+use opentelemetry_sdk::logs::SdkLoggerProvider;
+use opentelemetry_sdk::trace::SdkTracerProvider;
+use opentelemetry_sdk::Resource;
 use std::collections::HashMap;
 
 fn resource(new_relic_service_name: &str, host_name: &str) -> Resource {
-    Resource::new(vec![
-        KeyValue::new(
-            opentelemetry_semantic_conventions::resource::SERVICE_NAME,
-            new_relic_service_name.to_string(),
-        ),
-        KeyValue::new(
-            opentelemetry_semantic_conventions::resource::HOST_NAME,
-            host_name.to_string(),
-        ),
-    ])
+    Resource::builder()
+        .with_attributes(vec![
+            KeyValue::new(
+                opentelemetry_semantic_conventions::resource::SERVICE_NAME,
+                new_relic_service_name.to_string(),
+            ),
+            KeyValue::new(
+                opentelemetry_semantic_conventions::resource::HOST_NAME,
+                host_name.to_string(),
+            ),
+        ])
+        .build()
 }
 
 pub(crate) fn init_logger_provider(
@@ -27,7 +27,7 @@ pub(crate) fn init_logger_provider(
     new_relic_license_key: &str,
     new_relic_service_name: &str,
     host_name: &str,
-) -> Result<LoggerProvider, opentelemetry_sdk::logs::LogError> {
+) -> anyhow::Result<SdkLoggerProvider> {
     let exporter = LogExporter::builder()
         .with_http()
         .with_endpoint(format!("{}/v1/logs", new_relic_otlp_endpoint))
@@ -38,9 +38,9 @@ pub(crate) fn init_logger_provider(
         .with_protocol(Protocol::HttpJson)
         .build()?;
 
-    Ok(LoggerProvider::builder()
+    Ok(SdkLoggerProvider::builder()
         .with_resource(resource(new_relic_service_name, host_name))
-        .with_batch_exporter(exporter, runtime::Tokio)
+        .with_batch_exporter(exporter)
         .build())
 }
 
@@ -49,7 +49,7 @@ pub(crate) fn init_tracer_provider(
     new_relic_license_key: &str,
     new_relic_service_name: &str,
     host_name: &str,
-) -> Result<TracerProvider, TraceError> {
+) -> anyhow::Result<SdkTracerProvider> {
     let exporter = SpanExporter::builder()
         .with_http()
         .with_endpoint(format!("{}/v1/traces", new_relic_otlp_endpoint))
@@ -60,9 +60,9 @@ pub(crate) fn init_tracer_provider(
         .with_protocol(Protocol::HttpJson)
         .build()?;
 
-    Ok(TracerProvider::builder()
+    Ok(SdkTracerProvider::builder()
         .with_resource(resource(new_relic_service_name, host_name))
-        .with_batch_exporter(exporter, runtime::Tokio)
+        .with_batch_exporter(exporter)
         .build())
 }
 
@@ -71,7 +71,7 @@ pub(crate) fn init_metrics(
     new_relic_license_key: &str,
     new_relic_service_name: &str,
     host_name: &str,
-) -> Result<opentelemetry_sdk::metrics::SdkMeterProvider, MetricError> {
+) -> anyhow::Result<opentelemetry_sdk::metrics::SdkMeterProvider> {
     let exporter = MetricExporter::builder()
         .with_http()
         .with_endpoint(format!("{}/v1/metrics", new_relic_otlp_endpoint))
@@ -82,8 +82,7 @@ pub(crate) fn init_metrics(
         .with_protocol(Protocol::HttpJson)
         .build()?;
 
-    let reader =
-        opentelemetry_sdk::metrics::PeriodicReader::builder(exporter, runtime::Tokio).build();
+    let reader = opentelemetry_sdk::metrics::PeriodicReader::builder(exporter).build();
 
     Ok(opentelemetry_sdk::metrics::SdkMeterProvider::builder()
         .with_reader(reader)

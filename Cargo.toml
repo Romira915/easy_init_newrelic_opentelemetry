@@ -15,32 +15,29 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-opentelemetry = { version = "0.27.1", features = ["metrics", "logs"] }
-opentelemetry-http = "0.27.0"
-opentelemetry-otlp = { version = "0.27.0", features = [
-    "tonic",
+opentelemetry = { version = "0.31.0", features = ["metrics", "logs"] }
+opentelemetry-otlp = { version = "0.31.0", features = [
+    "grpc-tonic",
     "metrics",
     "logs",
-    "tracing",
+    "trace",
     "http-proto",
     "reqwest-client",
     "reqwest-rustls",
     "tls",
     "tls-roots",
-    "opentelemetry-http",
 ] }
-opentelemetry-semantic-conventions = { version = "0.27.0", features = [
+opentelemetry-semantic-conventions = { version = "0.31.0", features = [
     "semconv_experimental",
 ] }
-opentelemetry-stdout = { version = "0.27.0", features = ["logs"] }
-opentelemetry_sdk = { version = "0.27.1", features = [
-    "rt-tokio",
+opentelemetry-stdout = { version = "0.31.0", features = ["logs"] }
+opentelemetry_sdk = { version = "0.31.0", features = [
     "logs",
     "metrics",
 ] }
-tracing = "0.1.41"
-tracing-opentelemetry = { version = "0.28.0", features = [] }
-tracing-subscriber = { version = "0.3.19", features = [
+tracing = "0.1.44"
+tracing-opentelemetry = { version = "0.32.1", features = [] }
+tracing-subscriber = { version = "0.3.22", features = [
     "alloc",
     "json",
     "fmt",
@@ -48,9 +45,9 @@ tracing-subscriber = { version = "0.3.19", features = [
     "std",
     "time",
 ] }
-time = { version = "0.3.37", features = ["macros", "formatting"] }
-opentelemetry-appender-tracing2 = "0.27.1"
-anyhow = "1.0.94"
+time = { version = "0.3.47", features = ["macros", "formatting"] }
+opentelemetry-appender-tracing = "0.31.1"
+anyhow = "1.0.101"
 
 [dev-dependencies]
-tokio = { version = "1.42.0", features = [] }
+tokio = { version = "1.49.0", features = [] }

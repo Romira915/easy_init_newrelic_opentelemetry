@@ -16,7 +16,7 @@
 //! ```
 
 use crate::initialize::{init_logger_provider, init_metrics, init_tracer_provider};
-use opentelemetry::trace::TracerProvider;
+use opentelemetry::trace::TracerProvider as _;
 use time::macros::offset;
 use time::UtcOffset;
 use tracing_subscriber::layer::SubscriberExt;
@@ -111,7 +111,7 @@ impl NewRelicSubscriberInitializer {
             &host_name,
         )?;
         let otel_logs_layer =
-            opentelemetry_appender_tracing2::layer::OpenTelemetryTracingBridge::new(
+            opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge::new(
                 &logger_provider,
             );
 
