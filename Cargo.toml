@@ -1,6 +1,6 @@
 [package]
 name = "easy_init_newrelic_opentelemetry"
-version = "0.4.2"
+version = "0.5.0"
 authors = ["Romira915 <me@romira.dev>"]
 description = "A simple example of how to initialize a newrelic opentelemetry exporter"
 homepage = "https://github.com/Romira915/easy_init_newrelic_opentelemetry"
@@ -16,7 +16,7 @@ license = "MIT"
 
 [dependencies]
 opentelemetry = { version = "0.31.0", features = ["metrics", "logs"] }
-opentelemetry-otlp = { version = "0.31.0", default-features = false, features = [
+opentelemetry-otlp = { version = "0.31.1", default-features = false, features = [
     "grpc-tonic",
     "metrics",
     "logs",
@@ -37,7 +37,7 @@ opentelemetry_sdk = { version = "0.31.0", features = [
 ] }
 tracing = "0.1.44"
 tracing-opentelemetry = { version = "0.32.1", features = [] }
-tracing-subscriber = { version = "0.3.22", features = [
+tracing-subscriber = { version = "0.3.23", features = [
     "alloc",
     "json",
     "fmt",
@@ -47,7 +47,7 @@ tracing-subscriber = { version = "0.3.22", features = [
 ] }
 time = { version = "0.3.47", features = ["macros", "formatting"] }
 opentelemetry-appender-tracing = "0.31.1"
-anyhow = "1.0.101"
+anyhow = "1.0.102"
 
 [dev-dependencies]
-tokio = { version = "1.49.0", features = [] }
+tokio = { version = "1.50.0", features = [] }

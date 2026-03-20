@@ -15,7 +15,7 @@
 //!             // init();
 //! ```
 
-use crate::initialize::{init_logger_provider, init_metrics, init_tracer_provider};
+use crate::initialize::{init_logger_provider, init_metrics, init_process_metrics, init_tracer_provider};
 use opentelemetry::trace::TracerProvider as _;
 use time::macros::offset;
 use time::UtcOffset;
@@ -98,12 +98,15 @@ impl NewRelicSubscriberInitializer {
             .with_error_events_to_status(true)
             .with_error_events_to_exceptions(true)
             .with_location(true);
-        let otel_metrics_layer = tracing_opentelemetry::MetricsLayer::new(init_metrics(
+        let meter_provider = init_metrics(
             &newrelic_otlp_endpoint,
             &newrelic_license_key,
             &newrelic_service_name,
             &host_name,
-        )?);
+        )?;
+        opentelemetry::global::set_meter_provider(meter_provider.clone());
+        init_process_metrics(&meter_provider);
+        let otel_metrics_layer = tracing_opentelemetry::MetricsLayer::new(meter_provider);
         let logger_provider = init_logger_provider(
             &newrelic_otlp_endpoint,
             &newrelic_license_key,
