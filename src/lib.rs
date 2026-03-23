@@ -229,3 +229,58 @@ impl NewRelicSubscriberInitializer {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builder_default_has_no_values() {
+        let init = NewRelicSubscriberInitializer::default();
+        assert!(init.newrelic_otlp_endpoint.is_none());
+        assert!(init.newrelic_license_key.is_none());
+        assert!(init.newrelic_service_name.is_none());
+        assert!(init.host_name.is_none());
+        assert!(init.timestamps_offset.is_none());
+        assert!(init.with_ansi.is_none());
+    }
+
+    #[test]
+    fn builder_sets_values_from_str() {
+        let init = NewRelicSubscriberInitializer::default()
+            .newrelic_otlp_endpoint("http://localhost:4317")
+            .newrelic_license_key("test-key")
+            .newrelic_service_name("test-service")
+            .host_name("test-host")
+            .with_ansi(false);
+
+        assert_eq!(init.newrelic_otlp_endpoint.as_deref(), Some("http://localhost:4317"));
+        assert_eq!(init.newrelic_license_key.as_deref(), Some("test-key"));
+        assert_eq!(init.newrelic_service_name.as_deref(), Some("test-service"));
+        assert_eq!(init.host_name.as_deref(), Some("test-host"));
+        assert_eq!(init.with_ansi, Some(false));
+    }
+
+    #[test]
+    fn builder_accepts_owned_string() {
+        let init = NewRelicSubscriberInitializer::default()
+            .newrelic_license_key(String::from("owned-key"));
+
+        assert_eq!(init.newrelic_license_key.as_deref(), Some("owned-key"));
+    }
+
+    #[test]
+    fn init_without_license_key_returns_guard_with_no_providers() {
+        // Unset env vars to ensure no fallback
+        std::env::remove_var("NEW_RELIC_LICENSE_KEY");
+
+        let guard = NewRelicSubscriberInitializer::default()
+            .with_ansi(false)
+            .init()
+            .expect("init should succeed without license key");
+
+        assert!(guard.tracer_provider.is_none());
+        assert!(guard.meter_provider.is_none());
+        assert!(guard.logger_provider.is_none());
+    }
+}

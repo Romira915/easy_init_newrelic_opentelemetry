@@ -151,6 +151,65 @@ fn read_proc_status_field(field: &str) -> Option<u64> {
     None
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opentelemetry::Value;
+
+    fn find_attr<'a>(
+        res: &'a Resource,
+        key: &str,
+    ) -> Option<&'a Value> {
+        res.iter()
+            .find(|(k, _)| k.as_str() == key)
+            .map(|(_, v)| v)
+    }
+
+    #[test]
+    fn resource_contains_service_name_and_host() {
+        let res = resource("my-service", "my-host");
+
+        let service_name = find_attr(&res, "service.name").expect("service.name should be present");
+        assert_eq!(service_name.as_str(), "my-service");
+
+        let host_name = find_attr(&res, "host.name").expect("host.name should be present");
+        assert_eq!(host_name.as_str(), "my-host");
+    }
+
+    #[test]
+    fn resource_contains_process_pid() {
+        let res = resource("svc", "host");
+
+        let pid = find_attr(&res, "process.pid").expect("process.pid should be present");
+        assert_eq!(pid.as_str(), std::process::id().to_string());
+    }
+
+    #[test]
+    fn resource_contains_service_instance_id() {
+        let res = resource("svc", "my-host");
+
+        let instance_id = find_attr(&res, "service.instance.id")
+            .expect("service.instance.id should be present");
+        let expected = format!("my-host:{}", std::process::id());
+        assert_eq!(instance_id.as_str(), expected);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn read_proc_status_field_returns_threads() {
+        let threads = super::read_proc_status_field("Threads");
+        assert!(threads.is_some());
+        assert!(threads.unwrap() >= 1);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn read_proc_status_field_returns_none_for_unknown() {
+        let result = super::read_proc_status_field("NonExistentField");
+        assert!(result.is_none());
+    }
+}
+
 pub(crate) fn init_metrics(
     new_relic_otlp_endpoint: &str,
     new_relic_license_key: &str,
