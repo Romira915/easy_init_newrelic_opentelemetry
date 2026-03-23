@@ -16,7 +16,7 @@
 //! ```
 
 use crate::initialize::{
-    init_logger_provider, init_metrics, init_process_metrics, init_tracer_provider,
+    init_logger_provider, init_metrics, init_process_metrics, init_tracer_provider, resource,
 };
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_otlp::ExporterBuildError;
@@ -152,11 +152,12 @@ impl NewRelicSubscriberInitializer {
             meter_provider,
             logger_provider,
         ) = if let Some(license_key) = &newrelic_license_key {
+            let resource = resource(&newrelic_service_name, &host_name);
+
             let tracer_provider = init_tracer_provider(
                 &newrelic_otlp_endpoint,
                 license_key,
-                &newrelic_service_name,
-                &host_name,
+                resource.clone(),
             )?;
             opentelemetry::global::set_tracer_provider(tracer_provider.clone());
             let tracer = tracer_provider.tracer(newrelic_service_name.clone());
@@ -171,8 +172,7 @@ impl NewRelicSubscriberInitializer {
             let meter_provider = init_metrics(
                 &newrelic_otlp_endpoint,
                 license_key,
-                &newrelic_service_name,
-                &host_name,
+                resource.clone(),
             )?;
             opentelemetry::global::set_meter_provider(meter_provider.clone());
             init_process_metrics(&meter_provider);
@@ -182,8 +182,7 @@ impl NewRelicSubscriberInitializer {
             let logger_provider = init_logger_provider(
                 &newrelic_otlp_endpoint,
                 license_key,
-                &newrelic_service_name,
-                &host_name,
+                resource,
             )?;
             let otel_logs_layer =
                 opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge::new(

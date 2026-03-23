@@ -10,7 +10,7 @@ use opentelemetry_sdk::Resource;
 use std::collections::HashMap;
 use std::time::Instant;
 
-fn resource(new_relic_service_name: &str, host_name: &str) -> Resource {
+pub(crate) fn resource(new_relic_service_name: &str, host_name: &str) -> Resource {
     Resource::builder()
         .with_attributes(vec![
             KeyValue::new(
@@ -50,8 +50,7 @@ fn resource(new_relic_service_name: &str, host_name: &str) -> Resource {
 pub(crate) fn init_logger_provider(
     new_relic_otlp_endpoint: &str,
     new_relic_license_key: &str,
-    new_relic_service_name: &str,
-    host_name: &str,
+    resource: Resource,
 ) -> Result<SdkLoggerProvider, crate::Error> {
     let exporter = LogExporter::builder()
         .with_http()
@@ -64,7 +63,7 @@ pub(crate) fn init_logger_provider(
         .build()?;
 
     Ok(SdkLoggerProvider::builder()
-        .with_resource(resource(new_relic_service_name, host_name))
+        .with_resource(resource)
         .with_batch_exporter(exporter)
         .build())
 }
@@ -72,8 +71,7 @@ pub(crate) fn init_logger_provider(
 pub(crate) fn init_tracer_provider(
     new_relic_otlp_endpoint: &str,
     new_relic_license_key: &str,
-    new_relic_service_name: &str,
-    host_name: &str,
+    resource: Resource,
 ) -> Result<SdkTracerProvider, crate::Error> {
     let exporter = SpanExporter::builder()
         .with_http()
@@ -86,7 +84,7 @@ pub(crate) fn init_tracer_provider(
         .build()?;
 
     Ok(SdkTracerProvider::builder()
-        .with_resource(resource(new_relic_service_name, host_name))
+        .with_resource(resource)
         .with_batch_exporter(exporter)
         .build())
 }
@@ -156,8 +154,7 @@ fn read_proc_status_field(field: &str) -> Option<u64> {
 pub(crate) fn init_metrics(
     new_relic_otlp_endpoint: &str,
     new_relic_license_key: &str,
-    new_relic_service_name: &str,
-    host_name: &str,
+    resource: Resource,
 ) -> Result<opentelemetry_sdk::metrics::SdkMeterProvider, crate::Error> {
     let exporter = MetricExporter::builder()
         .with_http()
@@ -173,6 +170,6 @@ pub(crate) fn init_metrics(
 
     Ok(opentelemetry_sdk::metrics::SdkMeterProvider::builder()
         .with_reader(reader)
-        .with_resource(resource(new_relic_service_name, host_name))
+        .with_resource(resource)
         .build())
 }
