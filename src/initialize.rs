@@ -52,7 +52,7 @@ pub(crate) fn init_logger_provider(
     new_relic_license_key: &str,
     new_relic_service_name: &str,
     host_name: &str,
-) -> anyhow::Result<SdkLoggerProvider> {
+) -> Result<SdkLoggerProvider, crate::Error> {
     let exporter = LogExporter::builder()
         .with_http()
         .with_endpoint(format!("{}/v1/logs", new_relic_otlp_endpoint))
@@ -74,7 +74,7 @@ pub(crate) fn init_tracer_provider(
     new_relic_license_key: &str,
     new_relic_service_name: &str,
     host_name: &str,
-) -> anyhow::Result<SdkTracerProvider> {
+) -> Result<SdkTracerProvider, crate::Error> {
     let exporter = SpanExporter::builder()
         .with_http()
         .with_endpoint(format!("{}/v1/traces", new_relic_otlp_endpoint))
@@ -158,7 +158,7 @@ pub(crate) fn init_metrics(
     new_relic_license_key: &str,
     new_relic_service_name: &str,
     host_name: &str,
-) -> anyhow::Result<opentelemetry_sdk::metrics::SdkMeterProvider> {
+) -> Result<opentelemetry_sdk::metrics::SdkMeterProvider, crate::Error> {
     let exporter = MetricExporter::builder()
         .with_http()
         .with_endpoint(format!("{}/v1/metrics", new_relic_otlp_endpoint))
