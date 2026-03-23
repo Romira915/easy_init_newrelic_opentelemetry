@@ -2,7 +2,7 @@
 name = "easy_init_newrelic_opentelemetry"
 version = "0.5.0"
 authors = ["Romira915 <me@romira.dev>"]
-description = "A simple example of how to initialize a newrelic opentelemetry exporter"
+description = "A simple builder-pattern API to initialize OpenTelemetry tracing, metrics, and logging exporters for New Relic"
 homepage = "https://github.com/Romira915/easy_init_newrelic_opentelemetry"
 repository = "https://github.com/Romira915/easy_init_newrelic_opentelemetry"
 rust-version = "1.75.0"
