@@ -79,23 +79,23 @@ pub struct NewRelicSubscriberInitializer {
 }
 
 impl NewRelicSubscriberInitializer {
-    pub fn newrelic_otlp_endpoint(mut self, newrelic_otlp_endpoint: &str) -> Self {
-        self.newrelic_otlp_endpoint = Some(newrelic_otlp_endpoint.to_string());
+    pub fn newrelic_otlp_endpoint(mut self, newrelic_otlp_endpoint: impl Into<String>) -> Self {
+        self.newrelic_otlp_endpoint = Some(newrelic_otlp_endpoint.into());
         self
     }
 
-    pub fn newrelic_license_key(mut self, newrelic_license_key: &str) -> Self {
-        self.newrelic_license_key = Some(newrelic_license_key.to_string());
+    pub fn newrelic_license_key(mut self, newrelic_license_key: impl Into<String>) -> Self {
+        self.newrelic_license_key = Some(newrelic_license_key.into());
         self
     }
 
-    pub fn newrelic_service_name(mut self, newrelic_service_name: &str) -> Self {
-        self.newrelic_service_name = Some(newrelic_service_name.to_string());
+    pub fn newrelic_service_name(mut self, newrelic_service_name: impl Into<String>) -> Self {
+        self.newrelic_service_name = Some(newrelic_service_name.into());
         self
     }
 
-    pub fn host_name(mut self, host_name: &str) -> Self {
-        self.host_name = Some(host_name.to_string());
+    pub fn host_name(mut self, host_name: impl Into<String>) -> Self {
+        self.host_name = Some(host_name.into());
         self
     }
 
