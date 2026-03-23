@@ -75,6 +75,7 @@ pub struct NewRelicSubscriberInitializer {
     newrelic_service_name: Option<String>,
     host_name: Option<String>,
     timestamps_offset: Option<UtcOffset>,
+    with_ansi: Option<bool>,
 }
 
 impl NewRelicSubscriberInitializer {
@@ -100,6 +101,11 @@ impl NewRelicSubscriberInitializer {
 
     pub fn timestamps_offset(mut self, timestamps_offset: UtcOffset) -> Self {
         self.timestamps_offset = Some(timestamps_offset);
+        self
+    }
+
+    pub fn with_ansi(mut self, ansi: bool) -> Self {
+        self.with_ansi = Some(ansi);
         self
     }
 
@@ -132,8 +138,9 @@ impl NewRelicSubscriberInitializer {
         let host_name = self.host_name.unwrap_or_default();
         let timestamps_offset = self.timestamps_offset.unwrap_or(offset!(+00:00:00));
 
+        let ansi = self.with_ansi.unwrap_or_else(|| std::io::IsTerminal::is_terminal(&std::io::stderr()));
         let fmt_layer = tracing_subscriber::fmt::layer()
-            .with_ansi(true)
+            .with_ansi(ansi)
             .with_file(true)
             .with_line_number(true)
             .with_target(true)
