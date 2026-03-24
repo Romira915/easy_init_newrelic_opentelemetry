@@ -10,17 +10,20 @@ use opentelemetry_sdk::Resource;
 use std::collections::HashMap;
 use std::time::Instant;
 
-fn resource(new_relic_service_name: &str, host_name: &str) -> Resource {
-    Resource::builder()
-        .with_attributes(vec![
-            KeyValue::new(
-                opentelemetry_semantic_conventions::resource::SERVICE_NAME,
-                new_relic_service_name.to_string(),
-            ),
-            KeyValue::new(
-                opentelemetry_semantic_conventions::resource::HOST_NAME,
-                host_name.to_string(),
-            ),
+pub(crate) fn resource(
+    new_relic_service_name: &str,
+    host_name: &str,
+    service_version: Option<&str>,
+) -> Resource {
+    let mut attrs = vec![
+        KeyValue::new(
+            opentelemetry_semantic_conventions::resource::SERVICE_NAME,
+            new_relic_service_name.to_string(),
+        ),
+        KeyValue::new(
+            opentelemetry_semantic_conventions::resource::HOST_NAME,
+            host_name.to_string(),
+        ),
             KeyValue::new(
                 opentelemetry_semantic_conventions::resource::SERVICE_INSTANCE_ID,
                 format!("{}:{}", host_name, std::process::id()),
@@ -43,16 +46,27 @@ fn resource(new_relic_service_name: &str, host_name: &str) -> Resource {
                     })
                     .unwrap_or_default(),
             ),
-        ])
-        .build()
+            KeyValue::new(
+                opentelemetry_semantic_conventions::resource::OS_TYPE,
+                std::env::consts::OS,
+            ),
+        ];
+
+    if let Some(version) = service_version {
+        attrs.push(KeyValue::new(
+            opentelemetry_semantic_conventions::resource::SERVICE_VERSION,
+            version.to_string(),
+        ));
+    }
+
+    Resource::builder().with_attributes(attrs).build()
 }
 
 pub(crate) fn init_logger_provider(
     new_relic_otlp_endpoint: &str,
     new_relic_license_key: &str,
-    new_relic_service_name: &str,
-    host_name: &str,
-) -> anyhow::Result<SdkLoggerProvider> {
+    resource: Resource,
+) -> Result<SdkLoggerProvider, crate::Error> {
     let exporter = LogExporter::builder()
         .with_http()
         .with_endpoint(format!("{}/v1/logs", new_relic_otlp_endpoint))
@@ -64,7 +78,7 @@ pub(crate) fn init_logger_provider(
         .build()?;
 
     Ok(SdkLoggerProvider::builder()
-        .with_resource(resource(new_relic_service_name, host_name))
+        .with_resource(resource)
         .with_batch_exporter(exporter)
         .build())
 }
@@ -72,9 +86,8 @@ pub(crate) fn init_logger_provider(
 pub(crate) fn init_tracer_provider(
     new_relic_otlp_endpoint: &str,
     new_relic_license_key: &str,
-    new_relic_service_name: &str,
-    host_name: &str,
-) -> anyhow::Result<SdkTracerProvider> {
+    resource: Resource,
+) -> Result<SdkTracerProvider, crate::Error> {
     let exporter = SpanExporter::builder()
         .with_http()
         .with_endpoint(format!("{}/v1/traces", new_relic_otlp_endpoint))
@@ -86,7 +99,7 @@ pub(crate) fn init_tracer_provider(
         .build()?;
 
     Ok(SdkTracerProvider::builder()
-        .with_resource(resource(new_relic_service_name, host_name))
+        .with_resource(resource)
         .with_batch_exporter(exporter)
         .build())
 }
@@ -153,12 +166,93 @@ fn read_proc_status_field(field: &str) -> Option<u64> {
     None
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opentelemetry::Value;
+
+    fn find_attr<'a>(
+        res: &'a Resource,
+        key: &str,
+    ) -> Option<&'a Value> {
+        res.iter()
+            .find(|(k, _)| k.as_str() == key)
+            .map(|(_, v)| v)
+    }
+
+    #[test]
+    fn resource_contains_service_name_and_host() {
+        let res = resource("my-service", "my-host", None);
+
+        let service_name = find_attr(&res, "service.name").expect("service.name should be present");
+        assert_eq!(service_name.as_str(), "my-service");
+
+        let host_name = find_attr(&res, "host.name").expect("host.name should be present");
+        assert_eq!(host_name.as_str(), "my-host");
+    }
+
+    #[test]
+    fn resource_contains_process_pid() {
+        let res = resource("svc", "host", None);
+
+        let pid = find_attr(&res, "process.pid").expect("process.pid should be present");
+        assert_eq!(pid.as_str(), std::process::id().to_string());
+    }
+
+    #[test]
+    fn resource_contains_service_instance_id() {
+        let res = resource("svc", "my-host", None);
+
+        let instance_id = find_attr(&res, "service.instance.id")
+            .expect("service.instance.id should be present");
+        let expected = format!("my-host:{}", std::process::id());
+        assert_eq!(instance_id.as_str(), expected);
+    }
+
+    #[test]
+    fn resource_contains_os_type() {
+        let res = resource("svc", "host", None);
+
+        let os_type = find_attr(&res, "os.type").expect("os.type should be present");
+        assert_eq!(os_type.as_str(), std::env::consts::OS);
+    }
+
+    #[test]
+    fn resource_contains_service_version_when_provided() {
+        let res = resource("svc", "host", Some("1.2.3"));
+
+        let version = find_attr(&res, "service.version").expect("service.version should be present");
+        assert_eq!(version.as_str(), "1.2.3");
+    }
+
+    #[test]
+    fn resource_omits_service_version_when_none() {
+        let res = resource("svc", "host", None);
+
+        assert!(find_attr(&res, "service.version").is_none());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn read_proc_status_field_returns_threads() {
+        let threads = super::read_proc_status_field("Threads");
+        assert!(threads.is_some());
+        assert!(threads.unwrap() >= 1);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn read_proc_status_field_returns_none_for_unknown() {
+        let result = super::read_proc_status_field("NonExistentField");
+        assert!(result.is_none());
+    }
+}
+
 pub(crate) fn init_metrics(
     new_relic_otlp_endpoint: &str,
     new_relic_license_key: &str,
-    new_relic_service_name: &str,
-    host_name: &str,
-) -> anyhow::Result<opentelemetry_sdk::metrics::SdkMeterProvider> {
+    resource: Resource,
+) -> Result<opentelemetry_sdk::metrics::SdkMeterProvider, crate::Error> {
     let exporter = MetricExporter::builder()
         .with_http()
         .with_endpoint(format!("{}/v1/metrics", new_relic_otlp_endpoint))
@@ -173,6 +267,6 @@ pub(crate) fn init_metrics(
 
     Ok(opentelemetry_sdk::metrics::SdkMeterProvider::builder()
         .with_reader(reader)
-        .with_resource(resource(new_relic_service_name, host_name))
+        .with_resource(resource)
         .build())
 }

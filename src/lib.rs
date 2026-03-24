@@ -2,21 +2,28 @@
 //! This crate provides a subscriber for OpenTelemetry that sends spans and metrics to New Relic.
 //!
 //! ## Example
-//! ```rust
+//! ```rust,no_run
 //! use easy_init_newrelic_opentelemetry::NewRelicSubscriberInitializer;
 //! use time::macros::offset;
 //!
-//! NewRelicSubscriberInitializer::default()
+//! let _guard = NewRelicSubscriberInitializer::default()
 //!             .newrelic_otlp_endpoint("http://localhost:4317")
 //!             .newrelic_license_key("1234567890abcdef1234567890abcdef12345678")
 //!             .newrelic_service_name("test-service")
 //!             .host_name("test-host")
-//!             .timestamps_offset(offset!(+00:00:00));
-//!             // init();
+//!             .timestamps_offset(offset!(+00:00:00))
+//!             .init()
+//!             .expect("Failed to initialize telemetry");
 //! ```
 
-use crate::initialize::{init_logger_provider, init_metrics, init_process_metrics, init_tracer_provider};
+use crate::initialize::{
+    init_logger_provider, init_metrics, init_process_metrics, init_tracer_provider, resource,
+};
 use opentelemetry::trace::TracerProvider as _;
+use opentelemetry_otlp::ExporterBuildError;
+use opentelemetry_sdk::logs::SdkLoggerProvider;
+use opentelemetry_sdk::metrics::SdkMeterProvider;
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use time::macros::offset;
 use time::UtcOffset;
 use tracing_subscriber::layer::SubscriberExt;
@@ -26,33 +33,76 @@ mod initialize;
 
 const NEWRELIC_OTLP_ENDPOINT: &str = "https://otlp.nr-data.net";
 
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Failed to build OTLP exporter: {0}")]
+    ExporterBuild(#[from] ExporterBuildError),
+}
+
+/// A guard that keeps telemetry providers alive and shuts them down on drop.
+///
+/// Hold this value in your `main` function to ensure telemetry data is flushed
+/// when the application exits.
+pub struct TelemetryGuard {
+    tracer_provider: Option<SdkTracerProvider>,
+    meter_provider: Option<SdkMeterProvider>,
+    logger_provider: Option<SdkLoggerProvider>,
+}
+
+impl Drop for TelemetryGuard {
+    fn drop(&mut self) {
+        if let Some(provider) = &self.tracer_provider {
+            if let Err(e) = provider.shutdown() {
+                eprintln!("Failed to shutdown tracer provider: {e}");
+            }
+        }
+        if let Some(provider) = &self.meter_provider {
+            if let Err(e) = provider.shutdown() {
+                eprintln!("Failed to shutdown meter provider: {e}");
+            }
+        }
+        if let Some(provider) = &self.logger_provider {
+            if let Err(e) = provider.shutdown() {
+                eprintln!("Failed to shutdown logger provider: {e}");
+            }
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct NewRelicSubscriberInitializer {
     newrelic_otlp_endpoint: Option<String>,
     newrelic_license_key: Option<String>,
     newrelic_service_name: Option<String>,
     host_name: Option<String>,
+    service_version: Option<String>,
     timestamps_offset: Option<UtcOffset>,
+    with_ansi: Option<bool>,
 }
 
 impl NewRelicSubscriberInitializer {
-    pub fn newrelic_otlp_endpoint(mut self, newrelic_otlp_endpoint: &str) -> Self {
-        self.newrelic_otlp_endpoint = Some(newrelic_otlp_endpoint.to_string());
+    pub fn newrelic_otlp_endpoint(mut self, newrelic_otlp_endpoint: impl Into<String>) -> Self {
+        self.newrelic_otlp_endpoint = Some(newrelic_otlp_endpoint.into());
         self
     }
 
-    pub fn newrelic_license_key(mut self, newrelic_license_key: &str) -> Self {
-        self.newrelic_license_key = Some(newrelic_license_key.to_string());
+    pub fn newrelic_license_key(mut self, newrelic_license_key: impl Into<String>) -> Self {
+        self.newrelic_license_key = Some(newrelic_license_key.into());
         self
     }
 
-    pub fn newrelic_service_name(mut self, newrelic_service_name: &str) -> Self {
-        self.newrelic_service_name = Some(newrelic_service_name.to_string());
+    pub fn newrelic_service_name(mut self, newrelic_service_name: impl Into<String>) -> Self {
+        self.newrelic_service_name = Some(newrelic_service_name.into());
         self
     }
 
-    pub fn host_name(mut self, host_name: &str) -> Self {
-        self.host_name = Some(host_name.to_string());
+    pub fn host_name(mut self, host_name: impl Into<String>) -> Self {
+        self.host_name = Some(host_name.into());
+        self
+    }
+
+    pub fn service_version(mut self, service_version: impl Into<String>) -> Self {
+        self.service_version = Some(service_version.into());
         self
     }
 
@@ -61,28 +111,43 @@ impl NewRelicSubscriberInitializer {
         self
     }
 
-    pub fn init(self) -> anyhow::Result<()> {
+    pub fn with_ansi(mut self, ansi: bool) -> Self {
+        self.with_ansi = Some(ansi);
+        self
+    }
+
+    /// Initialize OpenTelemetry tracing, metrics, and logging exporters for New Relic.
+    ///
+    /// Returns a [`TelemetryGuard`] that must be held alive for the lifetime of the application.
+    /// When dropped, it gracefully shuts down all telemetry providers, flushing any pending data.
+    ///
+    /// # Environment variable fallback
+    ///
+    /// Builder values take precedence. If not set, the following environment variables are used:
+    /// - `NEW_RELIC_LICENSE_KEY` → license key
+    /// - `OTEL_SERVICE_NAME` → service name
+    /// - `OTEL_EXPORTER_OTLP_ENDPOINT` → OTLP endpoint
+    ///
+    /// If the license key is not set by either the builder or the environment variable,
+    /// OTLP exporters are **skipped** and only the local fmt layer is enabled.
+    pub fn init(self) -> Result<TelemetryGuard, Error> {
         let newrelic_otlp_endpoint = self
             .newrelic_otlp_endpoint
+            .or_else(|| std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok())
             .unwrap_or_else(|| NEWRELIC_OTLP_ENDPOINT.to_string());
-        let newrelic_license_key = self.newrelic_license_key.unwrap_or_default();
-        let newrelic_service_name = self.newrelic_service_name.unwrap_or_default();
+        let newrelic_license_key = self
+            .newrelic_license_key
+            .or_else(|| std::env::var("NEW_RELIC_LICENSE_KEY").ok());
+        let newrelic_service_name = self
+            .newrelic_service_name
+            .or_else(|| std::env::var("OTEL_SERVICE_NAME").ok())
+            .unwrap_or_default();
         let host_name = self.host_name.unwrap_or_default();
-        let timestamps_offset = self.timestamps_offset.unwrap_or_else(|| offset!(+00:00:00));
+        let timestamps_offset = self.timestamps_offset.unwrap_or(offset!(+00:00:00));
 
-        // init_propagator();
-
-        let tracer_provider = init_tracer_provider(
-            &newrelic_otlp_endpoint,
-            &newrelic_license_key,
-            &newrelic_service_name,
-            &host_name,
-        )?;
-        opentelemetry::global::set_tracer_provider(tracer_provider.clone());
-        let tracer = tracer_provider.tracer(newrelic_service_name.clone());
-
+        let ansi = self.with_ansi.unwrap_or_else(|| std::io::IsTerminal::is_terminal(&std::io::stderr()));
         let fmt_layer = tracing_subscriber::fmt::layer()
-            .with_ansi(true)
+            .with_ansi(ansi)
             .with_file(true)
             .with_line_number(true)
             .with_target(true)
@@ -92,31 +157,64 @@ impl NewRelicSubscriberInitializer {
             ));
         let env_filter =
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
-        let otel_trace_layer = tracing_opentelemetry::OpenTelemetryLayer::new(tracer)
-            .with_error_records_to_exceptions(true)
-            .with_error_fields_to_exceptions(true)
-            .with_error_events_to_status(true)
-            .with_error_events_to_exceptions(true)
-            .with_location(true);
-        let meter_provider = init_metrics(
-            &newrelic_otlp_endpoint,
-            &newrelic_license_key,
-            &newrelic_service_name,
-            &host_name,
-        )?;
-        opentelemetry::global::set_meter_provider(meter_provider.clone());
-        init_process_metrics(&meter_provider);
-        let otel_metrics_layer = tracing_opentelemetry::MetricsLayer::new(meter_provider);
-        let logger_provider = init_logger_provider(
-            &newrelic_otlp_endpoint,
-            &newrelic_license_key,
-            &newrelic_service_name,
-            &host_name,
-        )?;
-        let otel_logs_layer =
-            opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge::new(
-                &logger_provider,
-            );
+
+        let (
+            otel_trace_layer,
+            otel_metrics_layer,
+            otel_logs_layer,
+            tracer_provider,
+            meter_provider,
+            logger_provider,
+        ) = if let Some(license_key) = &newrelic_license_key {
+            let resource = resource(&newrelic_service_name, &host_name, self.service_version.as_deref());
+
+            let tracer_provider = init_tracer_provider(
+                &newrelic_otlp_endpoint,
+                license_key,
+                resource.clone(),
+            )?;
+            opentelemetry::global::set_tracer_provider(tracer_provider.clone());
+            let tracer = tracer_provider.tracer(newrelic_service_name.clone());
+
+            let otel_trace_layer = tracing_opentelemetry::OpenTelemetryLayer::new(tracer)
+                .with_error_records_to_exceptions(true)
+                .with_error_fields_to_exceptions(true)
+                .with_error_events_to_status(true)
+                .with_error_events_to_exceptions(true)
+                .with_location(true)
+                .with_level(true);
+
+            let meter_provider = init_metrics(
+                &newrelic_otlp_endpoint,
+                license_key,
+                resource.clone(),
+            )?;
+            opentelemetry::global::set_meter_provider(meter_provider.clone());
+            init_process_metrics(&meter_provider);
+            let otel_metrics_layer =
+                tracing_opentelemetry::MetricsLayer::new(meter_provider.clone());
+
+            let logger_provider = init_logger_provider(
+                &newrelic_otlp_endpoint,
+                license_key,
+                resource,
+            )?;
+            let otel_logs_layer =
+                opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge::new(
+                    &logger_provider,
+                );
+
+            (
+                Some(otel_trace_layer),
+                Some(otel_metrics_layer),
+                Some(otel_logs_layer),
+                Some(tracer_provider),
+                Some(meter_provider),
+                Some(logger_provider),
+            )
+        } else {
+            (None, None, None, None, None, None)
+        };
 
         tracing_subscriber::registry()
             .with(fmt_layer)
@@ -126,6 +224,71 @@ impl NewRelicSubscriberInitializer {
             .with(otel_logs_layer)
             .init();
 
-        Ok(())
+        if newrelic_license_key.is_none() {
+            tracing::warn!(
+                "NEW_RELIC_LICENSE_KEY is not set. OTLP exporters are disabled."
+            );
+        }
+
+        Ok(TelemetryGuard {
+            tracer_provider,
+            meter_provider,
+            logger_provider,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builder_default_has_no_values() {
+        let init = NewRelicSubscriberInitializer::default();
+        assert!(init.newrelic_otlp_endpoint.is_none());
+        assert!(init.newrelic_license_key.is_none());
+        assert!(init.newrelic_service_name.is_none());
+        assert!(init.host_name.is_none());
+        assert!(init.timestamps_offset.is_none());
+        assert!(init.with_ansi.is_none());
+    }
+
+    #[test]
+    fn builder_sets_values_from_str() {
+        let init = NewRelicSubscriberInitializer::default()
+            .newrelic_otlp_endpoint("http://localhost:4317")
+            .newrelic_license_key("test-key")
+            .newrelic_service_name("test-service")
+            .host_name("test-host")
+            .with_ansi(false);
+
+        assert_eq!(init.newrelic_otlp_endpoint.as_deref(), Some("http://localhost:4317"));
+        assert_eq!(init.newrelic_license_key.as_deref(), Some("test-key"));
+        assert_eq!(init.newrelic_service_name.as_deref(), Some("test-service"));
+        assert_eq!(init.host_name.as_deref(), Some("test-host"));
+        assert_eq!(init.with_ansi, Some(false));
+    }
+
+    #[test]
+    fn builder_accepts_owned_string() {
+        let init = NewRelicSubscriberInitializer::default()
+            .newrelic_license_key(String::from("owned-key"));
+
+        assert_eq!(init.newrelic_license_key.as_deref(), Some("owned-key"));
+    }
+
+    #[test]
+    fn init_without_license_key_returns_guard_with_no_providers() {
+        // Unset env vars to ensure no fallback
+        std::env::remove_var("NEW_RELIC_LICENSE_KEY");
+
+        let guard = NewRelicSubscriberInitializer::default()
+            .with_ansi(false)
+            .init()
+            .expect("init should succeed without license key");
+
+        assert!(guard.tracer_provider.is_none());
+        assert!(guard.meter_provider.is_none());
+        assert!(guard.logger_provider.is_none());
     }
 }
