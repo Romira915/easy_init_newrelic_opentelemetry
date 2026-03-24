@@ -75,6 +75,7 @@ pub struct NewRelicSubscriberInitializer {
     newrelic_license_key: Option<String>,
     newrelic_service_name: Option<String>,
     host_name: Option<String>,
+    service_version: Option<String>,
     timestamps_offset: Option<UtcOffset>,
     with_ansi: Option<bool>,
 }
@@ -97,6 +98,11 @@ impl NewRelicSubscriberInitializer {
 
     pub fn host_name(mut self, host_name: impl Into<String>) -> Self {
         self.host_name = Some(host_name.into());
+        self
+    }
+
+    pub fn service_version(mut self, service_version: impl Into<String>) -> Self {
+        self.service_version = Some(service_version.into());
         self
     }
 
@@ -160,7 +166,7 @@ impl NewRelicSubscriberInitializer {
             meter_provider,
             logger_provider,
         ) = if let Some(license_key) = &newrelic_license_key {
-            let resource = resource(&newrelic_service_name, &host_name);
+            let resource = resource(&newrelic_service_name, &host_name, self.service_version.as_deref());
 
             let tracer_provider = init_tracer_provider(
                 &newrelic_otlp_endpoint,

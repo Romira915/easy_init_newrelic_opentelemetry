@@ -10,17 +10,20 @@ use opentelemetry_sdk::Resource;
 use std::collections::HashMap;
 use std::time::Instant;
 
-pub(crate) fn resource(new_relic_service_name: &str, host_name: &str) -> Resource {
-    Resource::builder()
-        .with_attributes(vec![
-            KeyValue::new(
-                opentelemetry_semantic_conventions::resource::SERVICE_NAME,
-                new_relic_service_name.to_string(),
-            ),
-            KeyValue::new(
-                opentelemetry_semantic_conventions::resource::HOST_NAME,
-                host_name.to_string(),
-            ),
+pub(crate) fn resource(
+    new_relic_service_name: &str,
+    host_name: &str,
+    service_version: Option<&str>,
+) -> Resource {
+    let mut attrs = vec![
+        KeyValue::new(
+            opentelemetry_semantic_conventions::resource::SERVICE_NAME,
+            new_relic_service_name.to_string(),
+        ),
+        KeyValue::new(
+            opentelemetry_semantic_conventions::resource::HOST_NAME,
+            host_name.to_string(),
+        ),
             KeyValue::new(
                 opentelemetry_semantic_conventions::resource::SERVICE_INSTANCE_ID,
                 format!("{}:{}", host_name, std::process::id()),
@@ -43,8 +46,20 @@ pub(crate) fn resource(new_relic_service_name: &str, host_name: &str) -> Resourc
                     })
                     .unwrap_or_default(),
             ),
-        ])
-        .build()
+            KeyValue::new(
+                opentelemetry_semantic_conventions::resource::OS_TYPE,
+                std::env::consts::OS,
+            ),
+        ];
+
+    if let Some(version) = service_version {
+        attrs.push(KeyValue::new(
+            opentelemetry_semantic_conventions::resource::SERVICE_VERSION,
+            version.to_string(),
+        ));
+    }
+
+    Resource::builder().with_attributes(attrs).build()
 }
 
 pub(crate) fn init_logger_provider(
@@ -167,7 +182,7 @@ mod tests {
 
     #[test]
     fn resource_contains_service_name_and_host() {
-        let res = resource("my-service", "my-host");
+        let res = resource("my-service", "my-host", None);
 
         let service_name = find_attr(&res, "service.name").expect("service.name should be present");
         assert_eq!(service_name.as_str(), "my-service");
@@ -178,7 +193,7 @@ mod tests {
 
     #[test]
     fn resource_contains_process_pid() {
-        let res = resource("svc", "host");
+        let res = resource("svc", "host", None);
 
         let pid = find_attr(&res, "process.pid").expect("process.pid should be present");
         assert_eq!(pid.as_str(), std::process::id().to_string());
@@ -186,12 +201,35 @@ mod tests {
 
     #[test]
     fn resource_contains_service_instance_id() {
-        let res = resource("svc", "my-host");
+        let res = resource("svc", "my-host", None);
 
         let instance_id = find_attr(&res, "service.instance.id")
             .expect("service.instance.id should be present");
         let expected = format!("my-host:{}", std::process::id());
         assert_eq!(instance_id.as_str(), expected);
+    }
+
+    #[test]
+    fn resource_contains_os_type() {
+        let res = resource("svc", "host", None);
+
+        let os_type = find_attr(&res, "os.type").expect("os.type should be present");
+        assert_eq!(os_type.as_str(), std::env::consts::OS);
+    }
+
+    #[test]
+    fn resource_contains_service_version_when_provided() {
+        let res = resource("svc", "host", Some("1.2.3"));
+
+        let version = find_attr(&res, "service.version").expect("service.version should be present");
+        assert_eq!(version.as_str(), "1.2.3");
+    }
+
+    #[test]
+    fn resource_omits_service_version_when_none() {
+        let res = resource("svc", "host", None);
+
+        assert!(find_attr(&res, "service.version").is_none());
     }
 
     #[cfg(target_os = "linux")]
