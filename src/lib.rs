@@ -181,7 +181,8 @@ impl NewRelicSubscriberInitializer {
                 .with_error_fields_to_exceptions(true)
                 .with_error_events_to_status(true)
                 .with_error_events_to_exceptions(true)
-                .with_location(true);
+                .with_location(true)
+                .with_level(true);
 
             let meter_provider = init_metrics(
                 &newrelic_otlp_endpoint,
